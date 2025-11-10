@@ -230,5 +230,9 @@ module vault::error {
     public fun growth_overflow() : u64 {
         abort 58
     }
+
+    public fun reward_types_not_match() : u64 {
+        abort 59
+    }
 }
 
