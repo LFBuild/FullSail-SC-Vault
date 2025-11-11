@@ -1,5 +1,8 @@
 module vault::vault_config {
 
+    const COPYRIGHT_NOTICE: vector<u8> = b"© 2025 Metabyte Labs, Inc.  All Rights Reserved.";
+    const PATENT_NOTICE: vector<u8> = b"Patent pending - U.S. Patent Application No. 63/861,982";
+
     const VERSION: u64 = 1;
 
     // Role constants
@@ -67,6 +70,10 @@ module vault::vault_config {
     public struct UpdateMaxPriceDeviationEvent has copy, drop {
         old_max_price_deviation_bps: u64,
         new_max_price_deviation_bps: u64,
+    }
+
+    public fun notices(): (vector<u8>, vector<u8>) {
+        (COPYRIGHT_NOTICE, PATENT_NOTICE)
     }
 
     fun init(ctx: &mut sui::tx_context::TxContext) {

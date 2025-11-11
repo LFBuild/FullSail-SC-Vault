@@ -1,4 +1,6 @@
 module vault::port {
+    const COPYRIGHT_NOTICE: vector<u8> = b"© 2025 Metabyte Labs, Inc.  All Rights Reserved.";
+    const PATENT_NOTICE: vector<u8> = b"Patent pending - U.S. Patent Application No. 63/861,982";
 
     use std::type_name::{TypeName, with_defining_ids};
     use sui::object::ID;
@@ -211,6 +213,10 @@ module vault::port {
         port_id: ID,
         repay_type: TypeName,
         repay_amount: u64,
+    }
+
+    public fun notices(): (vector<u8>, vector<u8>) {
+        (COPYRIGHT_NOTICE, PATENT_NOTICE)
     }
 
     fun init(ctx: &mut TxContext) {

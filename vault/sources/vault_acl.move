@@ -1,5 +1,8 @@
 module vault::vault_acl {
 
+    const COPYRIGHT_NOTICE: vector<u8> = b"© 2025 Metabyte Labs, Inc.  All Rights Reserved.";
+    const PATENT_NOTICE: vector<u8> = b"Patent pending - U.S. Patent Application No. 63/861,982";
+
     const EInvalidRole: u64 = 939729457959745944;
     const EMemberNotFound: u64 = 943957943929212325;
     
@@ -12,6 +15,10 @@ module vault::vault_acl {
     public struct Member has copy, drop, store {
         address: address,
         permission: u128,
+    }
+
+    public fun notices(): (vector<u8>, vector<u8>) {
+        (COPYRIGHT_NOTICE, PATENT_NOTICE)
     }
     
     public fun new(ctx: &mut sui::tx_context::TxContext) : ACL {
