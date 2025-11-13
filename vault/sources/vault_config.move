@@ -122,61 +122,87 @@ module vault::vault_config {
     
     public fun add_role(global_config: &mut GlobalConfig, _: &AdminCap, member: address, role: u8) {
         checked_package_version(global_config); 
-        vault::vault_acl::add_role(&mut global_config.acl, member, role);
+        global_config.acl.add_role(member, role);
         let event = AddRoleEvent{member: member, role: role};
         sui::event::emit<AddRoleEvent>(event);
     }
     
     public fun remove_member(global_config: &mut GlobalConfig, _: &AdminCap, member: address) {
         checked_package_version(global_config); 
-        vault::vault_acl::remove_member(&mut global_config.acl, member);
+        global_config.acl.remove_member(member);
         let event = RemoveMemberEvent{member: member};
         sui::event::emit<RemoveMemberEvent>(event);
     }
     
     public fun remove_role(global_config: &mut GlobalConfig, _: &AdminCap, member: address, role: u8) {
         checked_package_version(global_config);
-        vault::vault_acl::remove_role(&mut global_config.acl, member, role);
+        global_config.acl.remove_role(member, role);
         let event = RemoveRoleEvent{member: member, role: role};
         sui::event::emit<RemoveRoleEvent>(event);
     }
     
     public fun set_roles(global_config: &mut GlobalConfig, _: &AdminCap, member: address, roles: u128) {
         checked_package_version(global_config);
-        vault::vault_acl::set_roles(&mut global_config.acl, member, roles);
+        global_config.acl.set_roles(member, roles);
         let event = SetRolesEvent{member: member, roles: roles};
         sui::event::emit<SetRolesEvent>(event);
     }
     
     public fun check_operation_role(global_config: &GlobalConfig, member: address) {
         assert!(
-            vault::vault_acl::has_role(&global_config.acl, member, ROLE_REINVEST) 
+            global_config.acl.has_role(member, ROLE_REINVEST) 
             || 
-            vault::vault_acl::has_role(&global_config.acl, member, ROLE_REBALANCE), 
+            global_config.acl.has_role(member, ROLE_REBALANCE), 
             vault::error::no_operation_manager_permission()
         );
     }
+
+    public fun is_operation_manager_role(global_config: &GlobalConfig, member: address) : bool {
+        global_config.acl.has_role(member, ROLE_REINVEST) 
+        || 
+        global_config.acl.has_role(member, ROLE_REBALANCE)
+    }
     
     public fun check_oracle_manager_role(global_config: &GlobalConfig, member: address) {
-        assert!(vault::vault_acl::has_role(&global_config.acl, member, ROLE_ORACLE_MANAGER), vault::error::no_oracle_manager_permission());
+        assert!(global_config.acl.has_role(member, ROLE_ORACLE_MANAGER), vault::error::no_oracle_manager_permission());
+    }
+
+    public fun is_oracle_manager_role(global_config: &GlobalConfig, member: address) : bool {
+        global_config.acl.has_role(member, ROLE_ORACLE_MANAGER)
     }
 
     public fun check_pool_manager_role(global_config: &GlobalConfig, member: address) {
-        assert!(vault::vault_acl::has_role(&global_config.acl, member, ROLE_POOL_MANAGER), vault::error::no_pool_manager_permission());
+        assert!(global_config.acl.has_role(member, ROLE_POOL_MANAGER), vault::error::no_pool_manager_permission());
+    }
+
+    public fun is_pool_manager_role(global_config: &GlobalConfig, member: address) : bool {
+        global_config.acl.has_role(member, ROLE_POOL_MANAGER)
     }
     
     public fun check_protocol_fee_claim_role(global_config: &GlobalConfig, member: address) {
-        assert!(vault::vault_acl::has_role(&global_config.acl, member, ROLE_PROTOCOL_FEE_CLAIM), vault::error::no_protocol_fee_claim_permission());
+        assert!(global_config.acl.has_role(member, ROLE_PROTOCOL_FEE_CLAIM), vault::error::no_protocol_fee_claim_permission());
+    }
+
+    public fun is_protocol_fee_claim_role(global_config: &GlobalConfig, member: address) : bool {
+        global_config.acl.has_role(member, ROLE_PROTOCOL_FEE_CLAIM)
     }
     
     public fun check_rebalance_role(global_config: &GlobalConfig, member: address) {
-        assert!(vault::vault_acl::has_role(&global_config.acl, member, ROLE_REBALANCE), vault::error::no_operation_manager_permission());
+        assert!(global_config.acl.has_role(member, ROLE_REBALANCE), vault::error::no_operation_manager_permission());
+    }
+
+    public fun is_rebalance_role(global_config: &GlobalConfig, member: address) : bool {
+        global_config.acl.has_role(member, ROLE_REBALANCE)
     }
     
     public fun check_reinvest_role(global_config: &GlobalConfig, member: address) {
-        assert!(vault::vault_acl::has_role(&global_config.acl, member, ROLE_REINVEST), vault::error::no_operation_manager_permission());
+        assert!(global_config.acl.has_role(member, ROLE_REINVEST), vault::error::no_operation_manager_permission());
     }
-    
+
+    public fun is_reinvest_role(global_config: &GlobalConfig, member: address) : bool {
+        global_config.acl.has_role(member, ROLE_REINVEST)
+    }
+
     public fun checked_package_version(global_config: &GlobalConfig) {
         assert!(VERSION >= global_config.package_version, vault::error::package_version_deprecate());
     }
@@ -203,8 +229,8 @@ module vault::vault_config {
     
     public fun get_swap_slippage<CoinType>(global_config: &GlobalConfig) : u64 {
         let type_name = std::type_name::with_defining_ids<CoinType>();
-        if (sui::vec_map::contains<std::type_name::TypeName, u64>(&global_config.swap_slippages, &type_name)) {
-            *sui::vec_map::get<std::type_name::TypeName, u64>(&global_config.swap_slippages, &type_name)
+        if (global_config.swap_slippages.contains(&type_name)) {
+            *global_config.swap_slippages.get(&type_name)
         } else {
             DEFAULT_SWAP_SLIPPAGE
         }

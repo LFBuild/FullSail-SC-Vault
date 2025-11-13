@@ -35,6 +35,8 @@ module vault::port {
         osail_reward_balances: vault::balance_bag::BalanceBag,
         osail_growth_global: LinkedTable<TypeName, u128>,
         last_update_osail_growth_time_ms: u64,
+
+        managers: move_stl::linked_table::LinkedTable<address, bool>,
     }
 
     public struct PortEntry<phantom LpCoinType> has store, key {
@@ -410,7 +412,6 @@ module vault::port {
         ctx: &mut TxContext
     ) {
         global_config.checked_package_version();
-        vault::vault_config::check_pool_manager_role(global_config, sui::tx_context::sender(ctx));
         assert!(sui::coin::total_supply<LpCoin>(&treasury_cap) == 0, vault::error::treasury_cap_illegal());
 
         let quote_type = if (quote_type_a) {
@@ -443,13 +444,16 @@ module vault::port {
             hard_cap          : hard_cap, 
             quote_type        : quote_type, 
             status            : new_status(), 
-            protocol_fee_rate : vault::vault_config::get_protocol_fee_rate(global_config),
+            protocol_fee_rate : global_config.get_protocol_fee_rate(),
             reward_growth     : sui::vec_map::empty<TypeName, u128>(),
             osail_growth_global : linked_table::new<TypeName, u128>(ctx),
             osail_reward_balances : vault::balance_bag::new_balance_bag(ctx),
             last_update_growth_time_ms: sui::vec_map::empty<TypeName, u64>(),
             last_update_osail_growth_time_ms: current_time,
+            managers: move_stl::linked_table::new<address, bool>(ctx),
         };
+        new_port.managers.push_back(sui::tx_context::sender(ctx), true);
+
         new_port.buffer_assets.join<CoinTypeA>(sui::balance::zero<CoinTypeA>()); 
         new_port.buffer_assets.join<CoinTypeB>(sui::balance::zero<CoinTypeB>());
         port_registry.ports.add<ID, ID>(
@@ -539,7 +543,12 @@ module vault::port {
         ctx: &mut TxContext
     ) {
         global_config.checked_package_version();
-        vault::vault_config::check_rebalance_role(global_config, sui::tx_context::sender(ctx));
+        assert!(
+            global_config.is_rebalance_role(sui::tx_context::sender(ctx))
+            ||
+            port.managers.contains(sui::tx_context::sender(ctx)),
+            vault::error::no_operation_manager_permission()
+        );
         assert!(!port.is_pause, vault::error::port_is_pause());
         assert!(sui::object::id<clmm_pool::pool::Pool<CoinTypeA, CoinTypeB>>(pool) == port.vault.pool_id(), vault::error::clmm_pool_not_match());
         let (need_rebalance, tick_lower, tick_upper) = check_need_rebalance<CoinTypeA, CoinTypeB, LpCoin>(
@@ -644,7 +653,12 @@ module vault::port {
         ctx: &mut TxContext
     ) {
         global_config.checked_package_version();
-        vault::vault_config::check_pool_manager_role(global_config, sui::tx_context::sender(ctx));
+        assert!(
+            global_config.is_pool_manager_role(sui::tx_context::sender(ctx))
+            ||
+            port.managers.contains(sui::tx_context::sender(ctx)),
+            vault::error::no_pool_manager_permission()
+        );
         assert!(!port.is_pause, vault::error::port_is_pause());
         let (current_lower_offset, current_upper_offset, _) = port.vault.get_liquidity_range();
         assert!(lower_offset != current_lower_offset || upper_offset != current_upper_offset, vault::error::liquidity_range_not_change());
@@ -735,7 +749,12 @@ module vault::port {
         ctx: &mut TxContext
     ) {
         global_config.checked_package_version();
-        vault::vault_config::check_pool_manager_role(global_config, sui::tx_context::sender(ctx));
+        assert!(
+            global_config.is_pool_manager_role(sui::tx_context::sender(ctx))
+            ||
+            port.managers.contains(sui::tx_context::sender(ctx)),
+            vault::error::no_pool_manager_permission()
+        );
         assert!(!port.is_pause, vault::error::port_is_pause());
         let (_, _, current_rebalance_threshold) = port.vault.get_liquidity_range();
         port.vault.update_rebalance_threshold(rebalance_threshold);
@@ -901,7 +920,10 @@ module vault::port {
         ctx: &mut TxContext
     ) : Coin<ProtocolFeeCoin> {
         global_config.checked_package_version();
-        vault::vault_config::check_protocol_fee_claim_role(global_config, sui::tx_context::sender(ctx));  
+        assert!(
+            global_config.is_protocol_fee_claim_role(sui::tx_context::sender(ctx)),
+            vault::error::no_protocol_fee_claim_permission()
+        );
         let protocol_fee = port.take_protocol_asset<LpCoin, ProtocolFeeCoin>();
         let event = ClaimProtocolFeeEvent{
             port_id : sui::object::id<Port<LpCoin>>(port), 
@@ -1533,7 +1555,12 @@ module vault::port {
         ctx: &mut TxContext,
     ) {
         global_config.checked_package_version();
-        global_config.check_operation_role(sui::tx_context::sender(ctx));
+        assert!(
+            global_config.is_operation_manager_role(sui::tx_context::sender(ctx))
+            ||
+            port.managers.contains(sui::tx_context::sender(ctx)),
+            vault::error::no_operation_manager_permission()
+        );
         assert!(!port.is_pause, vault::error::port_is_pause());
         assert!(sui::object::id<clmm_pool::pool::Pool<CoinTypeA, CoinTypeB>>(pool) == port.vault.pool_id(), vault::error::clmm_pool_not_match());
 
@@ -1599,7 +1626,12 @@ module vault::port {
         ctx: &mut TxContext,
     ) {
         global_config.checked_package_version();
-        global_config.check_operation_role(sui::tx_context::sender(ctx));
+        assert!(
+            global_config.is_operation_manager_role(sui::tx_context::sender(ctx))
+            ||
+            port.managers.contains(sui::tx_context::sender(ctx)),
+            vault::error::no_operation_manager_permission()
+        );
         assert!(!port.is_pause, vault::error::port_is_pause());
         assert!(sui::object::id<clmm_pool::pool::Pool<CoinTypeA, CoinTypeB>>(pool) == port.vault.pool_id(), vault::error::clmm_pool_not_match());
 
@@ -1673,7 +1705,12 @@ module vault::port {
         ctx: &mut TxContext 
     ) : (Coin<CoinTypeOut>, FlashLoanCert) {
         global_config.checked_package_version(); 
-        global_config.check_operation_role(sui::tx_context::sender(ctx));
+        assert!(
+            global_config.is_operation_manager_role(sui::tx_context::sender(ctx))
+            ||
+            port.managers.contains(sui::tx_context::sender(ctx)),
+            vault::error::no_operation_manager_permission()
+        );
         assert!(!port.is_pause, vault::error::port_is_pause());
         port.is_pause = true;
         assert!(loan_amount > 0, vault::error::token_amount_is_zero());
@@ -1700,7 +1737,12 @@ module vault::port {
         ctx: &mut TxContext 
     ) : (Coin<CoinTypeOut>, FlashLoanCert) {
         global_config.checked_package_version(); 
-        global_config.check_operation_role(sui::tx_context::sender(ctx));
+        assert!(
+            global_config.is_operation_manager_role(sui::tx_context::sender(ctx))
+            ||
+            port.managers.contains(sui::tx_context::sender(ctx)),
+            vault::error::no_operation_manager_permission()
+        );
         assert!(!port.is_pause, vault::error::port_is_pause());
         port.is_pause = true;
         assert!(loan_amount > 0, vault::error::token_amount_is_zero());
@@ -1789,7 +1831,12 @@ module vault::port {
         ctx: &mut TxContext
     ) {
         global_config.checked_package_version();
-        global_config.check_operation_role(sui::tx_context::sender(ctx));
+        assert!(
+            global_config.is_operation_manager_role(sui::tx_context::sender(ctx))
+            ||
+            port.managers.contains(sui::tx_context::sender(ctx)),
+            vault::error::no_operation_manager_permission()
+        );
         assert!(port.is_pause, vault::error::port_is_pause());
         port.is_pause = false;
 
@@ -2592,7 +2639,12 @@ module vault::port {
         ctx: &mut TxContext
     ) {
         global_config.checked_package_version();
-        vault::vault_config::check_pool_manager_role(global_config, sui::tx_context::sender(ctx));
+        assert!(
+            global_config.is_pool_manager_role(sui::tx_context::sender(ctx))
+            ||
+            port.managers.contains(sui::tx_context::sender(ctx)),
+            vault::error::no_pool_manager_permission()
+        );
         assert!(!port.is_pause, vault::error::port_is_pause());
         let old_hard_cap = port.hard_cap;
         port.hard_cap = new_hard_cap;
@@ -2627,7 +2679,7 @@ module vault::port {
         ctx: &mut TxContext
     ) {
         global_config.checked_package_version();
-        vault::vault_config::check_pool_manager_role(global_config, sui::tx_context::sender(ctx));
+        global_config.check_pool_manager_role(sui::tx_context::sender(ctx));
         assert!(!port.is_pause, vault::error::port_is_pause());
         assert!(new_protocol_fee_rate <= vault::vault_config::get_max_protocol_fee_rate(), vault::error::invalid_protocol_fee_rate()); 
         let old_protocol_fee_rate = port.protocol_fee_rate;
@@ -2646,7 +2698,12 @@ module vault::port {
 
     public fun pause<LpCoin>(port: &mut Port<LpCoin>, global_config: &vault::vault_config::GlobalConfig, ctx: &mut TxContext) {
         global_config.checked_package_version();
-        vault::vault_config::check_pool_manager_role(global_config, sui::tx_context::sender(ctx));
+        assert!(
+            global_config.is_pool_manager_role(sui::tx_context::sender(ctx))
+            ||
+            port.managers.contains(sui::tx_context::sender(ctx)),
+            vault::error::no_pool_manager_permission()
+        );
         port.is_pause = true;
         let event = PauseEvent{port_id: sui::object::id<Port<LpCoin>>(port)};
         sui::event::emit<PauseEvent>(event);
@@ -2654,7 +2711,12 @@ module vault::port {
 
     public fun unpause<LpCoin>(port: &mut Port<LpCoin>, global_config: &vault::vault_config::GlobalConfig, ctx: &mut TxContext) {
         global_config.checked_package_version();
-        vault::vault_config::check_pool_manager_role(global_config, sui::tx_context::sender(ctx));
+        assert!(
+            global_config.is_pool_manager_role(sui::tx_context::sender(ctx))
+            ||
+            port.managers.contains(sui::tx_context::sender(ctx)),
+            vault::error::no_pool_manager_permission()
+        );
         port.is_pause = false;
         let event = UnpauseEvent{port_id: sui::object::id<Port<LpCoin>>(port)};
         sui::event::emit<UnpauseEvent>(event);
@@ -2827,6 +2889,49 @@ module vault::port {
         );
 
         sui::transfer::public_transfer<sui::display::Display<PortEntry<LpCoin>>>(display, sui::tx_context::sender(ctx));
+    }
+
+    public fun add_manager<LpCoin>(
+        port: &mut Port<LpCoin>, 
+        global_config: &vault::vault_config::GlobalConfig, 
+        manager: address, 
+        ctx: &mut TxContext
+    ) {
+        global_config.checked_package_version();
+        assert!(!port.is_pause, vault::error::port_is_pause());
+        global_config.check_pool_manager_role(ctx.sender());
+        if (!port.managers.contains(manager)) {
+            port.managers.push_back(manager, true);
+        };
+    }
+
+    public fun remove_manager<LpCoin>(
+        port: &mut Port<LpCoin>, 
+        global_config: &vault::vault_config::GlobalConfig, 
+        manager: address, 
+        ctx: &mut TxContext
+    ) {
+        global_config.checked_package_version();
+        assert!(!port.is_pause, vault::error::port_is_pause());
+        global_config.check_pool_manager_role(ctx.sender());
+        if (port.managers.contains(manager)) {
+            port.managers.remove(manager);
+        };
+    }
+
+    public fun check_manager<LpCoin>(port: &Port<LpCoin>, manager: address) : bool {
+        port.managers.contains(manager)
+    }
+
+    public fun get_managers<LpCoin>(port: &Port<LpCoin>) : vector<address> {
+        let mut managers = std::vector::empty<address>();
+        let mut head = port.managers.head();
+        while (head.is_some()) {
+            let manager = *head.borrow();
+            managers.push_back(manager);
+            head = port.managers.borrow_node(manager).next();
+        };
+        managers
     }
 }
 

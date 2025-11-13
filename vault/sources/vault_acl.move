@@ -27,62 +27,62 @@ module vault::vault_acl {
     
     public fun add_role(acl: &mut ACL, member: address, role: u8) {
         assert!(role < 128, EInvalidRole);
-        if (move_stl::linked_table::contains<address, u128>(&acl.permissions, member)) {
-            let permission = move_stl::linked_table::borrow_mut<address, u128>(&mut acl.permissions, member);
+        if (acl.permissions.contains(member)) {
+            let permission = acl.permissions.borrow_mut(member);
             *permission = *permission | (1 << role);
         } else {
-            move_stl::linked_table::push_back<address, u128>(&mut acl.permissions, member, 1 << role);
+            acl.permissions.push_back(member, 1 << role);
         };
     }
     
     public fun get_members(acl: &ACL) : vector<Member> {
         let mut members = std::vector::empty<Member>(); 
-        let mut head = move_stl::linked_table::head<address, u128>(&acl.permissions);
+        let mut head = acl.permissions.head();
         while (std::option::is_some<address>(&head)) {
             let member = *std::option::borrow<address>(&head);
-            let permission = move_stl::linked_table::borrow_node<address, u128>(&acl.permissions, member);
+            let permission = acl.permissions.borrow_node(member);
             let member = Member{
                 address    : member, 
-                permission : *move_stl::linked_table::borrow_value<address, u128>(permission),
+                permission : *permission.borrow_value(),
             };
             std::vector::push_back<Member>(&mut members, member);
-            head = move_stl::linked_table::next<address, u128>(permission);
+            head = permission.next();
         };
         members
     }
     
     public fun get_permission(acl: &ACL, member: address) : u128 {
-        if (!move_stl::linked_table::contains<address, u128>(&acl.permissions, member)) {
+        if (!acl.permissions.contains(member)) {
             0
         } else {
-            *move_stl::linked_table::borrow<address, u128>(&acl.permissions, member)
+            *acl.permissions.borrow(member)
         }
     }
     
     public fun has_role(acl: &ACL, member: address, role: u8) : bool {
         assert!(role < 128, EInvalidRole);
-        move_stl::linked_table::contains<address, u128>(&acl.permissions, member) 
+        acl.permissions.contains(member) 
         && 
-        (*move_stl::linked_table::borrow<address, u128>(&acl.permissions, member) & (1 << role) > 0)
+        (*acl.permissions.borrow(member) & (1 << role) > 0)
     }
     
     public fun remove_member(acl: &mut ACL, member: address) {
-        assert!(move_stl::linked_table::contains<address, u128>(&acl.permissions, member), EMemberNotFound);
-        move_stl::linked_table::remove<address, u128>(&mut acl.permissions, member); 
+        assert!(acl.permissions.contains(member), EMemberNotFound);
+        acl.permissions.remove(member); 
     }
     
     public fun remove_role(acl: &mut ACL, member: address, role: u8) {
         assert!(role < 128, EInvalidRole);
-        assert!(move_stl::linked_table::contains<address, u128>(&acl.permissions, member), EMemberNotFound);
-        let permission = move_stl::linked_table::borrow_mut<address, u128>(&mut acl.permissions, member);
+        assert!(acl.permissions.contains(member), EMemberNotFound);
+        let permission = acl.permissions.borrow_mut(member);
         *permission = *permission & (U128_MAX - (1 << role));
     }
     
     public fun set_roles(acl: &mut ACL, member: address, roles: u128) {
-        if (move_stl::linked_table::contains<address, u128>(&acl.permissions, member)) {
-            *move_stl::linked_table::borrow_mut<address, u128>(&mut acl.permissions, member) = roles;
+        if (acl.permissions.contains(member)) {
+            *acl.permissions.borrow_mut(member) = roles;
         } else {
-            move_stl::linked_table::push_back<address, u128>(&mut acl.permissions, member, roles);
+            acl.permissions.push_back(member, roles);
         };
     }
 }
