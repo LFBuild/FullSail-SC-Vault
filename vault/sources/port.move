@@ -194,6 +194,8 @@ module vault::port {
     public struct RebalanceEvent has copy, drop {
         port_id: ID,
         data: vault::vault::MigrateLiquidity,
+        remained_a: u64,
+        remained_b: u64,
     }
     
     public struct UpdateLiquidityOffsetEvent has copy, drop {
@@ -607,14 +609,16 @@ module vault::port {
             ctx
         );
 
+        port.buffer_assets.join<CoinTypeA>(balance_a);
+        port.buffer_assets.join<CoinTypeB>(balance_b);
+
         let event = RebalanceEvent{
             port_id : sui::object::id<Port<LpCoin>>(port), 
             data    : migrate_liquidity,
+            remained_a         : port.buffer_assets.value<CoinTypeA>(),
+            remained_b         : port.buffer_assets.value<CoinTypeB>(),
         };
         sui::event::emit<RebalanceEvent>(event);
-
-        port.buffer_assets.join<CoinTypeA>(balance_a);
-        port.buffer_assets.join<CoinTypeB>(balance_b);
     }
 
     /// Updates the target liquidity range for the port and optionally rebalances.
