@@ -53,7 +53,7 @@ override = true
 [dependencies.locker_cap]
 git = "https://github.com/LFBuild/FullSail-SC.git"
 subdir = "locker_cap"
-rev = "vaults"
+rev = "main"
 override = true
 
 [dependencies.Switchboard]
@@ -64,11 +64,11 @@ rev = "mainnet"
 [dependencies.price_monitor]
 git = "https://github.com/LFBuild/FullSail-SC.git"
 subdir = "price_monitor"
-rev = "vaults"
+rev = "main"
 override = true
 
 [dependencies.governance]
 git = "https://github.com/LFBuild/FullSail-SC.git"
 subdir = "governance"
-rev = "vaults"
+rev = "main"
 override = true
